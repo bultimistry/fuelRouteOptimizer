@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Fuel Route Optimizer</title>
+
+    <meta charset="utf-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+      body {
+        font-family: Arial;
+        margin: 0;
+        padding: 0;
+      }
+
+      #controls {
+        padding: 15px;
+        background: #f5f5f5;
+      }
+
+      #map {
+        height: 90vh;
+      }
+
+      input {
+        padding: 8px;
+        width: 200px;
+        margin-right: 10px;
+      }
+
+      button {
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="controls">
+      <input
+        type="text"
+        id="start"
+        placeholder="Start Location"
+        value="New York"
+      />
+
+      <input
+        type="text"
+        id="finish"
+        placeholder="Finish Location"
+        value="Chicago"
+      />
+
+      <button onclick="getRoute()">Optimize Route</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script src="https://unpkg.com/@mapbox/polyline"></script>
+
+    <script>
+      const map = L.map("map").setView([39.5, -98.35], 4);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      let routeLayer;
+
+      async function getRoute() {
+        const start = document.getElementById("start").value;
+
+        const finish = document.getElementById("finish").value;
+
+        const response = await fetch(
+    'http://127.0.0.1:8000/api/route/', {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            start,
+            finish,
+          }),
+        });
+
+        const data = await response.json();
+
+        console.log(data);
+
+        if (routeLayer) {
+          map.removeLayer(routeLayer);
+        }
+
+       const decoded = polyline.decode(
+    data.route_geometry
+);
+
+        routeLayer = L.polyline(decoded, {
+          color: "blue",
+          weight: 5,
+        }).addTo(map);
+
+        map.fitBounds(routeLayer.getBounds());
+
+      // Fuel stop markers
+data.fuel_plan.fuel_stops.forEach(
+    (stop, index) => {
+
+        const pointIndex = Math.floor(
+            decoded.length /
+            (data.fuel_plan.fuel_stops.length + 1)
+            * (index + 1)
+        );
+
+        const point = decoded[pointIndex];
+
+        L.marker(point)
+            .addTo(map)
+            .bindPopup(
+                `
+                <b>${stop.truckstop_name}</b><br>
+                ${stop.city}, ${stop.state}<br>
+                Price: $${stop.retail_price}<br>
+                Cost: $${stop.cost}
+                `
+            );
+    }
+);
+
+        alert(
+          `
+Distance: ${data.route_summary.distance_miles} miles
+
+Fuel Cost: $${data.fuel_plan.estimated_total_cost}
+                `,
+        );
+      }
+    </script>
+  </body>
+</html>
